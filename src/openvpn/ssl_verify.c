@@ -1222,6 +1222,84 @@ verify_user_pass_plugin(struct tls_session *session, const struct user_pass *up,
 cleanup:
     return retval;
 }
+static int
+verify_user_pass_plugin_reason(struct tls_session *session, struct tls_multi *multi, const struct user_pass *up, const char *raw_username)
+{
+    int retval = OPENVPN_PLUGIN_FUNC_ERROR;
+#ifdef PLUGIN_DEF_AUTH
+    struct key_state *ks = &session->key[KS_PRIMARY];      /* primary key */
+#endif
+
+
+    /* Is username defined? */
+    if ((session->opt->ssl_flags & SSLF_AUTH_USER_PASS_OPTIONAL) || strlen(up->username))
+    {
+        struct plugin_return pr, prfetch;
+        plugin_return_init(&pr);
+        
+        /* set username/password in private env space */
+        setenv_str(session->opt->es, "username", (raw_username ? raw_username : up->username));
+        setenv_str(session->opt->es, "password", up->password);
+
+        /* setenv incoming cert common name for script */
+        setenv_str(session->opt->es, "common_name", session->common_name);
+
+        /* setenv client real IP address */
+        setenv_untrusted(session);
+
+#ifdef PLUGIN_DEF_AUTH
+        /* generate filename for deferred auth control file */
+        if (!key_state_gen_auth_control_file(ks, session->opt))
+        {
+            msg (D_TLS_ERRORS, "TLS Auth Error (%s): "
+                 "could not create deferred auth control file", __func__);
+            goto cleanup;
+        }
+#endif
+
+        /* call command */
+        retval = plugin_call(session->opt->plugins, OPENVPN_PLUGIN_AUTH_USER_PASS_VERIFY_RET_REASON, NULL, &pr, session->opt->es);
+        plugin_return_print(D_PLUGIN, "OPENVPN_PLUGIN_AUTH_USER_PASS_VERIFY_RET_REASON", &pr);
+        
+        //Fetch client reason
+        plugin_return_get_column(&pr, &prfetch, "client_reason");
+        if (plugin_return_defined(&prfetch))
+        {
+            int i;
+            for (i = 0; i < prfetch.n; ++i)
+            {
+                if (prfetch.list[i] && prfetch.list[i]->value)
+                {
+                    man_def_auth_set_client_reason(multi, prfetch.list[i]->value);
+                }
+            }
+        }
+
+        plugin_return_free(&pr);
+
+
+#ifdef PLUGIN_DEF_AUTH
+        /* purge auth control filename (and file itself) for non-deferred returns */
+        if (retval != OPENVPN_PLUGIN_FUNC_DEFERRED)
+        {
+            key_state_rm_auth_control_file(ks);
+        }
+#endif
+
+        setenv_del(session->opt->es, "password");
+        if (raw_username)
+        {
+            setenv_str(session->opt->es, "username", up->username);
+        }
+    }
+    else
+    {
+        msg(D_TLS_ERRORS, "TLS Auth Error (verify_user_pass_plugin): peer provided a blank username");
+    }
+
+cleanup:
+    return retval;
+}
 
 
 #ifdef MANAGEMENT_DEF_AUTH
@@ -1379,6 +1457,10 @@ verify_user_pass(struct user_pass *up, struct tls_multi *multi,
     if (plugin_defined(session->opt->plugins, OPENVPN_PLUGIN_AUTH_USER_PASS_VERIFY))
     {
         s1 = verify_user_pass_plugin(session, up, raw_username);
+    }
+    if (plugin_defined(session->opt->plugins, OPENVPN_PLUGIN_AUTH_USER_PASS_VERIFY_RET_REASON))
+    {
+        s1 = verify_user_pass_plugin_reason(session, multi, up, raw_username);
     }
     if (session->opt->auth_user_pass_verify_script)
     {

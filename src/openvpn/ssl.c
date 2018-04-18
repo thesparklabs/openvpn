@@ -1041,6 +1041,7 @@ tls_session_user_pass_enabled(struct tls_session *session)
 {
     return (session->opt->auth_user_pass_verify_script
             || plugin_defined(session->opt->plugins, OPENVPN_PLUGIN_AUTH_USER_PASS_VERIFY)
+            || plugin_defined(session->opt->plugins, OPENVPN_PLUGIN_AUTH_USER_PASS_VERIFY_RET_REASON)
 #ifdef MANAGEMENT_DEF_AUTH
             || management_enable_def_auth(management)
 #endif

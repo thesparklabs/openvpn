@@ -97,6 +97,9 @@ plugin_type_name(const int type)
         case OPENVPN_PLUGIN_AUTH_USER_PASS_VERIFY:
             return "PLUGIN_AUTH_USER_PASS_VERIFY";
 
+        case OPENVPN_PLUGIN_AUTH_USER_PASS_VERIFY_RET_REASON:
+            return "PLUGIN_AUTH_USER_PASS_VERIFY_RET_REASON";
+
         case OPENVPN_PLUGIN_CLIENT_CONNECT:
             return "PLUGIN_CLIENT_CONNECT";
 
