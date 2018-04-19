@@ -1203,7 +1203,7 @@ verify_user_pass_plugin(struct tls_session *session, struct tls_multi *multi, co
         /* call command */
         retval = plugin_call(session->opt->plugins, OPENVPN_PLUGIN_AUTH_USER_PASS_VERIFY, NULL, &pr, session->opt->es);
 
-        //Fetch client reason
+        /* Fetch client reason */
         plugin_return_get_column(&pr, &prfetch, "client_reason");
         if (plugin_return_defined(&prfetch))
         {
