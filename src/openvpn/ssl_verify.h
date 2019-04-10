@@ -171,6 +171,8 @@ tls_common_name_hash(const struct tls_multi *multi, const char **cn, uint32_t *c
 
 #endif
 
+void set_client_reason(struct tls_multi *multi, const char *client_reason);
+
 /**
  * Verify the given username and password, using either an external script, a
  * plugin, or the management interface.
@@ -225,19 +227,12 @@ struct x509_track
  */
 #ifdef MANAGEMENT_DEF_AUTH
 bool tls_authenticate_key(struct tls_multi *multi, const unsigned int mda_key_id, const bool auth, const char *client_reason);
-
-void man_def_auth_set_client_reason(struct tls_multi *multi, const char *client_reason);
-
 #endif
 
 static inline const char *
 tls_client_reason(struct tls_multi *multi)
 {
-#ifdef ENABLE_DEF_AUTH
     return multi->client_reason;
-#else
-    return NULL;
-#endif
 }
 
 /** Remove any X509_ env variables from env_set es */

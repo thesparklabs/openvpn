@@ -515,13 +515,13 @@ struct tls_multi
     char *locked_cn;
     char *locked_username;
     struct cert_hash_set *locked_cert_hash_set;
-
-#ifdef ENABLE_DEF_AUTH
+    
     /*
      * An error message to send to client on AUTH_FAILED
      */
     char *client_reason;
 
+#ifdef ENABLE_DEF_AUTH
     /* Time of last call to tls_authentication_status */
     time_t tas_last;
 #endif

@@ -837,21 +837,6 @@ cleanup:
 #endif
 
 #ifdef MANAGEMENT_DEF_AUTH
-void
-man_def_auth_set_client_reason(struct tls_multi *multi, const char *client_reason)
-{
-    if (multi->client_reason)
-    {
-        free(multi->client_reason);
-        multi->client_reason = NULL;
-    }
-    if (client_reason && strlen(client_reason))
-    {
-        /* FIXME: Last alloc will never be freed */
-        multi->client_reason = string_alloc(client_reason, NULL);
-    }
-}
-
 static inline unsigned int
 man_def_auth_test(const struct key_state *ks)
 {
@@ -1055,7 +1040,7 @@ tls_authenticate_key(struct tls_multi *multi, const unsigned int mda_key_id, con
     if (multi)
     {
         int i;
-        man_def_auth_set_client_reason(multi, client_reason);
+        set_client_reason(multi, client_reason);
         for (i = 0; i < KEY_SCAN_SIZE; ++i)
         {
             struct key_state *ks = multi->key_scan[i];
@@ -1080,6 +1065,21 @@ tls_authenticate_key(struct tls_multi *multi, const unsigned int mda_key_id, con
  * If you want to add new authentication methods,
  * this is the place to start.
  *************************************************************************** */
+
+
+void
+set_client_reason(struct tls_multi *multi, const char *client_reason)
+{
+    if (multi->client_reason)
+    {
+        free(multi->client_reason);
+        multi->client_reason = NULL;
+    }
+    if (client_reason && strlen(client_reason))
+    {
+        multi->client_reason = string_alloc(client_reason, NULL);
+    }
+}
 
 /*
  * Verify the user name and password using a script
@@ -1166,7 +1166,7 @@ done:
  * Verify the username and password using a plugin
  */
 static int
-verify_user_pass_plugin(struct tls_session *session, const struct user_pass *up, const char *raw_username)
+verify_user_pass_plugin(struct tls_session *session, struct tls_multi *multi, const struct user_pass *up, const char *raw_username)
 {
     int retval = OPENVPN_PLUGIN_FUNC_ERROR;
 #ifdef PLUGIN_DEF_AUTH
@@ -1176,6 +1176,9 @@ verify_user_pass_plugin(struct tls_session *session, const struct user_pass *up,
     /* Is username defined? */
     if ((session->opt->ssl_flags & SSLF_AUTH_USER_PASS_OPTIONAL) || strlen(up->username))
     {
+        struct plugin_return pr, prfetch;
+        plugin_return_init(&pr);
+
         /* set username/password in private env space */
         setenv_str(session->opt->es, "username", (raw_username ? raw_username : up->username));
         setenv_str(session->opt->es, "password", up->password);
@@ -1197,7 +1200,23 @@ verify_user_pass_plugin(struct tls_session *session, const struct user_pass *up,
 #endif
 
         /* call command */
-        retval = plugin_call(session->opt->plugins, OPENVPN_PLUGIN_AUTH_USER_PASS_VERIFY, NULL, NULL, session->opt->es);
+        retval = plugin_call(session->opt->plugins, OPENVPN_PLUGIN_AUTH_USER_PASS_VERIFY, NULL, &pr, session->opt->es);
+
+        /* Fetch client reason */
+        plugin_return_get_column(&pr, &prfetch, "client_reason");
+        if (plugin_return_defined(&prfetch))
+        {
+            int i;
+            for (i = 0; i < prfetch.n; ++i)
+            {
+                if (prfetch.list[i] && prfetch.list[i]->value)
+                {
+                    set_client_reason(multi, prfetch.list[i]->value);
+                }
+            }
+        }
+
+        plugin_return_free(&pr);
 
 #ifdef PLUGIN_DEF_AUTH
         /* purge auth control filename (and file itself) for non-deferred returns */
@@ -1378,7 +1397,7 @@ verify_user_pass(struct user_pass *up, struct tls_multi *multi,
 #endif
     if (plugin_defined(session->opt->plugins, OPENVPN_PLUGIN_AUTH_USER_PASS_VERIFY))
     {
-        s1 = verify_user_pass_plugin(session, up, raw_username);
+        s1 = verify_user_pass_plugin(session, multi, up, raw_username);
     }
     if (session->opt->auth_user_pass_verify_script)
     {
@@ -1462,7 +1481,16 @@ verify_user_pass(struct user_pass *up, struct tls_multi *multi,
         if (multi->connection_established)
         {
             /* Notify the client */
-            send_push_reply_auth_failed(multi, "SESSION:Auth failed");
+            const char *client_reason;
+            if (multi->client_reason != NULL)
+            {
+                client_reason = multi->client_reason;
+            }
+            else
+            {
+                client_reason = "SESSION:Auth failed";
+            }
+            send_push_reply_auth_failed(multi, client_reason);
 
         }
         msg(D_TLS_ERRORS, "TLS Auth Error: Auth Username/Password verification failed for peer");
