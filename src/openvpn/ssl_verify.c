@@ -1336,6 +1336,7 @@ verify_user_pass(struct user_pass *up, struct tls_multi *multi,
             && (multi->auth_token_tstamp + session->opt->auth_token_lifetime) < now)
         {
             msg(D_HANDSHAKE, "Auth-token for client expired\n");
+            send_push_reply_auth_failed(multi, "SESSION:Auth-token expired");
             wipe_auth_token(multi);
             ks->authenticated = false;
             goto done;
@@ -1458,6 +1459,12 @@ verify_user_pass(struct user_pass *up, struct tls_multi *multi,
     }
     else
     {
+        if (multi->connection_established)
+        {
+            /* Notify the client */
+            send_push_reply_auth_failed(multi, "SESSION:Auth failed");
+
+        }
         msg(D_TLS_ERRORS, "TLS Auth Error: Auth Username/Password verification failed for peer");
     }
 

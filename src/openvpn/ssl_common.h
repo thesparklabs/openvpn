@@ -547,6 +547,7 @@ struct tls_multi
     time_t auth_token_tstamp; /**< timestamp of the generated token */
     bool auth_token_sent; /**< If server uses --auth-gen-token and
                            *   token has been sent to client */
+    bool connection_established ; /** Notifies future auth calls this is a reneg */
     /*
      * Our session objects.
      */

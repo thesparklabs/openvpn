@@ -2085,6 +2085,7 @@ script_failed:
 
         /* set flag so we don't get called again */
         mi->connection_established_flag = true;
+        mi->context.c2.tls_multi->connection_established = true;
 
         /* increment number of current authenticated clients */
         ++m->n_clients;

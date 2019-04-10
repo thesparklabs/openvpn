@@ -234,6 +234,36 @@ send_auth_failed(struct context *c, const char *client_reason)
 }
 
 /*
+ * Send auth failed message from server to client without scheduling.
+ * Main use for queuing a message during renegotiation
+ */
+void
+send_push_reply_auth_failed(struct tls_multi *multi, const char *client_reason)
+{
+    struct gc_arena gc = gc_new();
+    static const char auth_failed[] = "AUTH_FAILED";
+    size_t len;
+
+    len = (client_reason ? strlen(client_reason)+1 : 0) + sizeof(auth_failed);
+    if (len > PUSH_BUNDLE_SIZE)
+    {
+        len = PUSH_BUNDLE_SIZE;
+    }
+
+    {
+        struct buffer buf = alloc_buf_gc(len, &gc);
+        buf_printf(&buf, auth_failed);
+        if (client_reason)
+        {
+            buf_printf(&buf, ",%s", client_reason);
+        }
+        send_control_channel_string_dowork(multi, BSTR(&buf), D_PUSH);
+    }
+
+    gc_free(&gc);
+}
+
+/*
  * Send restart message from server to client.
  */
 void
